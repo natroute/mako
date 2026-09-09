@@ -10,12 +10,14 @@ const obj: { [name: string]: MsExpr } = {
     ),
 
     exit: Concat(
+        Call('unescape',
+            Call('for', Param(1), ',', ' ', '@', Escaped(Call('drop',
+				Concat(Call('load', '%f'), '%@')
+			))
+        )),
         Call('store',
             '%f',
-            Call('add', Call('load', '%f'), '1'),
-        ),
-        Call('unescape',
-            Call('for', Param(1), ',', ' ', '@', Escaped(Call('drop', '@')))
+            Call('subtract', Call('load', '%f'), '1'),
         ),
     ),
 
