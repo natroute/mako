@@ -1,5 +1,11 @@
 {
     "compilerOptions": {
-        "types": ["node"]
+        "lib": ["ESNext"],
+        "module": "nodenext",
+        "moduleResolution": "nodenext",
+        "rewriteRelativeImportExtensions": true,
+        "types": ["node"],
+        "rootDir": "./src",
+        "outDir": "./dist",
     }
 }

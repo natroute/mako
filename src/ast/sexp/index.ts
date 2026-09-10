@@ -1,4 +1,7 @@
-import { type Range, type Loc, ParseError } from '../common';
+import { BaseCompileError } from '../../index.ts';
+import { type Range, type Loc } from '../index.ts';
+
+export class SexpParseError extends BaseCompileError {}
 
 type SexpValueMap = {
     atom: string;
@@ -17,10 +20,3 @@ export type Sexp = {
         range: Range;
     }
 }[SexpType];
-
-export class SexpParseError extends ParseError {
-    constructor(loc: Loc) {
-        super(loc);
-        this.name = 'SexpParseError';
-    }
-}

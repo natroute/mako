@@ -1,11 +1,9 @@
-import type { Sexp, SexpType, SexpValue, AnySexpValue } from '../sexp';
-import type { Range } from '../common';
-import { FinalParseError } from '.';
+import type { Sexp, SexpType, SexpValue, AnySexpValue } from '../sexp/index.ts';
+import type { Range } from '../index.ts';
+import { FinalParseError } from './index.ts';
 
-export function error(range: Sexp | Range, message: string): never {
-    // @ts-ignore
-    if (range.type) { range = range.range; }
-    range = range as Range;
+export function error(range: { range: Range } | Range, message: string): never {
+    if ('range' in range) { range = range.range; }
     throw new FinalParseError(range, message);
 }
 

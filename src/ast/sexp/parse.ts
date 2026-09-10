@@ -1,4 +1,4 @@
-import { type Sexp, SexpParseError } from '.';
+import { type Sexp, SexpParseError } from './index.ts';
 
 const isWhitespace = (char: string) => /^\s$/.test(char);
 
@@ -10,14 +10,22 @@ export function parseFile(source: string): Sexp[] {
     const atEof = () => i >= source.length; 
 
     function current() {
-        if (atEof()) { error(); }
+        if (atEof()) { error('unexpected EOF'); }
         return source[i];
     }
 
-    function skip() {
+    function rawSkip() {
         i++; columnI++;
         if (!atEof() && current() === '\n') {
             lineI++; columnI = 0;
+        }
+    }
+
+    function skip() {
+        rawSkip();
+        if (!atEof() && current() === '#') {
+            while (current() !== '\n') { rawSkip(); }
+            rawSkip();
         }
     }
 
@@ -27,19 +35,23 @@ export function parseFile(source: string): Sexp[] {
 
     const getLoc = () => ({ line: lineI + 1, column: columnI });
 
-    function error(): never {
-        throw new SexpParseError(getLoc());
+    function error(message: string): never {
+        const loc = getLoc();
+        throw new SexpParseError({ start: loc, end: loc }, message);
     }
 
-    function expect(char: string) {
-        if (current() !== char) { error(); }
+    function expect(expectedChar: string) {
+        const char = current();
+        if (char !== expectedChar) {
+            error(`expected ${JSON.stringify(expectedChar)}, got ${JSON.stringify(char)}`);
+        }
         skip();
     }
 
     function parseNode() {
         skipWhitespace();
         const char = current();
-        if (char === ')' || char === ']')  { error(); }
+        if (char === ')' || char === ']')  { error(`unexpected ${JSON.stringify(char)}`); }
         if (char === '(' || char === '[')  { return parseList(char); }
         if (char === '"' || char === '\'') { return parseString(char); }
         return parseAtom();
