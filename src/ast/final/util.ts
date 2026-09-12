@@ -57,7 +57,7 @@ export function asListWith<
         }
     }
     else {
-        if (items.length <= first.length) {
+        if (items.length < first.length) {
             error(sexp, `expected at least ${first.length} elements, got ${items.length}`);
         }
     }

@@ -13,7 +13,7 @@ import {
 } from './index.ts';
 import type { Range } from '../index.ts';
 
-const nop = (..._: any) => {};
+const nop = (..._: any) => undefined;
 
 function pairs(items: Sexp[], strict: boolean = true): [Sexp, Sexp][] {
     if (strict && items.length % 2 === 1) {
@@ -30,7 +30,7 @@ function pairs(items: Sexp[], strict: boolean = true): [Sexp, Sexp][] {
     return result;
 }
 
-export function parseFile(sexps: Sexp[]): Def[] {
+export function parse(sexps: Sexp[]): Def[] {
     return sexps.map(parseDef);
 }
 
@@ -61,6 +61,10 @@ function parseDef(sexp: Sexp): Def {
         const [_, name, value] = asListWith(sexp, [nop, asAtom, parseType]);
         result = { type: 'typeAlias', name, value };
     }
+    else if (first === 'global') {
+        const [_, name, typeNode] = asListWith(sexp, [nop, asAtom, parseType]);
+        result = { type: 'global', name, typeNode };
+    }
     else {
         error(firstSexp, 'invalid top-level definition');
     }
@@ -83,6 +87,10 @@ function parseType(sexp: Sexp): Type {
             const fields = pairs(value.slice(1), true).map(([x, y]) =>
                 ({ name: asAtom(x), type: parseType(y) }));
             result = { kind: 'struct', fields };
+        }
+        else if (first === 'list') {
+            const [_, value] = asListWith(sexp, [nop, parseType]);
+            result = { kind: 'list', value };
         }
         else {
             error(firstSexp, 'invalid type');
@@ -120,13 +128,27 @@ function parseExpr(sexp: Sexp): Expr {
 
             result = { type: 'if', clauses, elseBody };
         }
+        else if (first === 'for') {
+            const [_, varName, start, end, body] = asListWith(sexp, [nop, asAtom, parseExpr, parseExpr, parseExpr]);
+            result = { type: 'forSeq', varName, start, end, body };
+        }
         else if (first === 'new') {
             const [[_, target], fieldSexps] = asListWith(sexp, [nop, parseType], x => x);
 
             const fields = pairs(fieldSexps, true).map(([x, y]) =>
-                ({ name: asAtom(x), value: parseExpr(y) }));
+                ({ name: parseStructExprFieldName(x), value: parseExpr(y) }));
 
-            result = { type: 'structInit', target, fields };
+            result = { type: 'struct', target, fields };
+        }
+        else if (first === 'list') {
+            if (rest.length === 0) {
+                error(sexp, 'a list initializer must have at least one item; use list* for an empty list');
+            }
+            result = { type: 'list', items: rest.map(parseExpr) };
+        }
+        else if (first === 'list*') {
+            const [_, itemType] = asListWith(sexp, [nop, parseType]);
+            result = { type: 'emptyList', itemType };
         }
         else {
             const [_, args] = asListWith(sexp, [nop], parseExpr);
@@ -165,4 +187,12 @@ function parseExpr(sexp: Sexp): Expr {
     }
 
     return withRange(result, sexp.range);
+}
+
+function parseStructExprFieldName(sexp: Sexp): string {
+    const value = asAtom(sexp);
+    if (!value.startsWith(':')) {
+        error(sexp, 'field names in struct initializers must be preceded by a colon');
+    }
+    return value.slice(1);
 }

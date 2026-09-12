@@ -8,7 +8,7 @@ export type PrimitiveType = (typeof primitiveTypeArray)[number];
 
 export type Type = Readonly<
     | { kind: PrimitiveType }
-    | { kind: 'struct', fields: Map<string, StructField>/*, depth: number*/ }
+    | { kind: 'struct', fields: Map<string, StructField>, depth: number }
     | { kind: 'list', value: Type }
     | { kind: 'ref', value: Type }
 >;
@@ -24,6 +24,7 @@ export type MsExpr =
     | { type: 'intrinsicCall', target: string, args: MsExpr[] }
     | { type: 'concat', items: MsExpr[] }
     | { type: 'escaped', body: MsExpr }
+    | { type: 'deescaped', body: MsExpr }
     | { type: 'param', index: number };
 
 /**
@@ -44,16 +45,20 @@ export type Var = {
     type: Type;
 };
 
+export type Global = {
+    
+};
+
 export const primitiveTypes = new Set<string>(primitiveTypeArray);
 
 export function isTypeNamePrimitive(name: string): name is PrimitiveType {
     return primitiveTypes.has(name);
 }
 
-export function structSepFromDepth(depth: number): MsExpr {
+export function structSepFromDepth(depth: number): string {
     if (depth >= 32) {
-        throw new Error();
+        throw new Error('you nested a struct so deep i ran out of unicode noncharacters for it');
     }
-    return Call('chr', (0xfdd0 + depth).toString());
+    return String.fromCharCode(0xfdd0 + depth);
 }
 export const structSep0 = structSepFromDepth(0);

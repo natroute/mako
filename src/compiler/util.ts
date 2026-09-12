@@ -45,6 +45,9 @@ export const Concat = (...items: MsExprLike[]): MsExpr =>
 export const Escaped = (body: MsExprLike): MsExpr =>
     ({ type: 'escaped', body: convert(body) });
 
+export const Deescaped = (body: MsExprLike): MsExpr =>
+    ({ type: 'deescaped', body: convert(body) });
+
 export const Param = (index: number): MsExpr =>
     ({ type: 'param', index });
 

@@ -2,7 +2,7 @@ import { type Sexp, SexpParseError } from './index.ts';
 
 const isWhitespace = (char: string) => /^\s$/.test(char);
 
-export function parseFile(source: string): Sexp[] {
+export function parse(source: string): Sexp[] {
     let i = 0;
     let lineI = 0;
     let columnI = 0;
@@ -14,7 +14,7 @@ export function parseFile(source: string): Sexp[] {
         return source[i];
     }
 
-    function rawSkip() {
+    function skipRaw() {
         i++; columnI++;
         if (!atEof() && current() === '\n') {
             lineI++; columnI = 0;
@@ -22,10 +22,10 @@ export function parseFile(source: string): Sexp[] {
     }
 
     function skip() {
-        rawSkip();
+        skipRaw();
         if (!atEof() && current() === '#') {
-            while (current() !== '\n') { rawSkip(); }
-            rawSkip();
+            while (current() !== '\n') { skipRaw(); }
+            skipRaw();
         }
     }
 
@@ -84,8 +84,11 @@ export function parseFile(source: string): Sexp[] {
         expect(delim);
         let char: string;
         while ((char = current()) !== delim) {
+            if (char === '\n') {
+                error('unexpected newline in string');
+            }
             value += char;
-            skip();
+            skipRaw();
         }
         skip();
 

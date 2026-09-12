@@ -4,3 +4,7 @@
         (+ (fib (- n 1)) (fib (- n 2)))
     )
 )
+
+(fn main () void
+    (print (fib 7))
+)

@@ -8,8 +8,8 @@
 )
 
 (fn main () void [
-    (let v (new Vector x 1 y 2))
-    (let w (new Vector x 3 y 4))
+    (let v (new Vector :x 1 :y 2))
+    (let w (new Vector :x 3 :y 4))
     (print "v:" v)
     (print "w:" w)
     (print "v + w:" (vector_add v w))
