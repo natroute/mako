@@ -9,9 +9,13 @@ export type PrimitiveType = (typeof primitiveTypeArray)[number];
 export type Type = Readonly<
     | { kind: PrimitiveType }
     | { kind: 'struct', fields: Map<string, StructField>, depth: number }
+    | { kind: 'variant', cases: Map<string, VariantCase>, depth: number }
     | { kind: 'list', value: Type }
+    | { kind: 'map', key: Type, value: Type }
     | { kind: 'ref', value: Type }
 >;
+
+export type VariantCase = { index: number, type: Type };
 
 export type StructField = { index: number, type: Type };
 
@@ -55,10 +59,10 @@ export function isTypeNamePrimitive(name: string): name is PrimitiveType {
     return primitiveTypes.has(name);
 }
 
-export function structSepFromDepth(depth: number): string {
+export function compoundSepFromDepth(depth: number): string {
     if (depth >= 32) {
         throw new Error('you nested a struct so deep i ran out of unicode noncharacters for it');
     }
     return String.fromCharCode(0xfdd0 + depth);
 }
-export const structSep0 = structSepFromDepth(0);
+export const compoundSep0 = compoundSepFromDepth(0);

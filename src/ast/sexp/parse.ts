@@ -1,3 +1,4 @@
+import type { Loc } from '../index.ts';
 import { type Sexp, SexpParseError } from './index.ts';
 
 const isWhitespace = (char: string) => /^\s$/.test(char);
@@ -7,40 +8,53 @@ export function parse(source: string): Sexp[] {
     let lineI = 0;
     let columnI = 0;
 
-    const atEof = () => i >= source.length; 
+    const atEof = (): boolean => i >= source.length; 
 
-    function current() {
+    function current(): string {
         if (atEof()) { error('unexpected EOF'); }
         return source[i];
     }
 
-    function skipRaw() {
+    function skipRaw(): void {
         i++; columnI++;
         if (!atEof() && current() === '\n') {
             lineI++; columnI = 0;
         }
     }
 
-    function skip() {
-        skipRaw();
+    function skipComments(): void {
         if (!atEof() && current() === '#') {
             while (current() !== '\n') { skipRaw(); }
             skipRaw();
         }
     }
 
-    function skipWhitespace() {
+    function skip(): void {
+        skipRaw();
+        skipComments();
+    }
+
+    function skipWhitespace(): void {
         while (!atEof() && isWhitespace(current())) { skip(); }
     }
 
-    const getLoc = () => ({ line: lineI + 1, column: columnI });
+    function readChars(n: number): string {
+        let chars = '';
+        for (let i = 0; i < n; i++) {
+            skip();
+            chars += current();
+        }
+        return chars;
+    }
+
+    const getLoc = (): Loc => ({ line: lineI + 1, column: columnI });
 
     function error(message: string): never {
         const loc = getLoc();
         throw new SexpParseError({ start: loc, end: loc }, message);
     }
 
-    function expect(expectedChar: string) {
+    function expect(expectedChar: string): void {
         const char = current();
         if (char !== expectedChar) {
             error(`expected ${JSON.stringify(expectedChar)}, got ${JSON.stringify(char)}`);
@@ -50,7 +64,7 @@ export function parse(source: string): Sexp[] {
 
     function parseNode() {
         skipWhitespace();
-        const char = current();
+        let char = current();
         if (char === ')' || char === ']')  { error(`unexpected ${JSON.stringify(char)}`); }
         if (char === '(' || char === '[')  { return parseList(char); }
         if (char === '"' || char === '\'') { return parseString(char); }
@@ -87,6 +101,22 @@ export function parse(source: string): Sexp[] {
             if (char === '\n') {
                 error('unexpected newline in string');
             }
+            if (char === '\\') {
+                skipRaw();
+                switch (current()) {
+                    case delim: value += delim; break;
+                    case '\\': value += '\\'; break;
+                    case 'n': value += '\n'; break;
+                    case 'x':
+                        value += String.fromCharCode(Number.parseInt(readChars(2), 16));
+                        break;
+                    case 'u':
+                        value += String.fromCharCode(Number.parseInt(readChars(4), 16));
+                        break;
+                }
+                skipRaw();
+                continue;
+            }
             value += char;
             skipRaw();
         }
@@ -110,6 +140,7 @@ export function parse(source: string): Sexp[] {
     }
 
     const nodes = [];
+    skipComments();
     while (!atEof()) {
         nodes.push(parseNode());
         skipWhitespace();

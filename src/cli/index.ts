@@ -5,7 +5,8 @@ import { compile, CompileOptions, defaultOptions } from '../compiler/compile.ts'
 import { parseArgs } from 'node:util';
 import { dump } from '../dump.ts';
 
-const options = parseArgs({
+const parseResult = parseArgs({
+    allowPositionals: true,
     options: Object.fromEntries(
         Object.entries(defaultOptions)
             .map(([name, default_]) => [
@@ -13,17 +14,7 @@ const options = parseArgs({
                 { type: typeof default_ as 'string' | 'boolean' }
             ]),
     ),
-}).values as CompileOptions;
+});
+const options = parseResult.values as CompileOptions;
 
-console.log(
-    dump(
-        compile(
-            parseFinal(
-                parseSexp(
-                    readFileSync(0, 'utf-8'),
-                ),
-            ),
-            options,
-        ),
-    ),
-);
+console.log(dump(compile(parseResult.positionals[0])));

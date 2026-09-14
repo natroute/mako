@@ -11,3 +11,12 @@ export class BaseCompileError extends Error {
         this.realMessage = message;
     }
 }
+
+export class RootCompileError extends Error {
+    path: string;
+
+    constructor(path: string) {
+        super(`in file ${path}`);
+        this.path = path;
+    }
+}

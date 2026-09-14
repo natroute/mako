@@ -38,6 +38,10 @@ const _intrinsics: { [name: string]: MsExpr } = {
     load: Call('load',
         Concat(Call('load', STACK_FRAME), '%', Param(1)),
     ),
+
+    drop: Call('drop',
+        Concat(Call('load', STACK_FRAME), '%', Param(1)),
+    ),
     
     alloc: Concat(
         ALLOC_PREFIX, Call('load', ALLOC_COUNT),
@@ -83,7 +87,4 @@ const _intrinsics: { [name: string]: MsExpr } = {
     ),
 };
 
-export const intrinsics = new Map(
-    Object.entries(_intrinsics)
-        .map(([name, value]) => [name, value])
-);
+export const intrinsics = new Map(Object.entries(_intrinsics));

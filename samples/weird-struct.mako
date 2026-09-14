@@ -7,10 +7,10 @@
 ))
 
 (fn main () void [
-    (let w (new WeirdStruct
+    (let w (& WeirdStruct
         :n 67
         :l (list "meow" "lalala")
-        :v (new Vector :x 31 :y 40)
+        :v (& :x 31 :y 40)
     ))
     (print w.n w.l w.v)
 ])

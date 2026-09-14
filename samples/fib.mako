@@ -5,6 +5,10 @@
     )
 )
 
-(fn main () void
-    (print (fib 7))
-)
+(fn main () void [
+    (let x "")
+    (for i 0 10 [
+        (set x (.. x (to_string (fib i)) " "))
+    ])
+    (print x)
+])

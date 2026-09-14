@@ -64,28 +64,46 @@ export function join(exprs: MsExprLike[], sep: MsExprLike): MsExpr {
 }
 
 export function stringifyType(type: Type): string {
-    const { kind } = type;
-    if (kind === 'struct') {
-        return (
-            '(struct ' +
-            [...type.fields]
-                .map(([name, { type }]) => `${name} ${stringifyType(type)}`)
-                .join(' ') +
-            ')'
-        );
+    const visited = new WeakSet<Type>();
+    function inner(type: Type): string {
+        if (visited.has(type)) {
+            return '[...]';
+        }
+        visited.add(type);
+
+        const { kind } = type;
+        if (kind === 'struct') {
+            return (
+                '(struct ' +
+                [...type.fields]
+                    .map(([name, { type }]) => `${name} ${inner(type)}`)
+                    .join(' ') +
+                ')'
+            );
+        }
+        else if (kind === 'list') {
+            return `(list ${inner(type.value)})`;
+        }
+        else if (kind === 'variant') {
+            return (
+                '(variant ' +
+                [...type.cases]
+                    .map(([name, { type }]) => `${name} ${inner(type)}`)
+                    .join(' ') +
+                ')'
+            );
+        }
+        else if (kind === 'ref') {
+            return `(ref ${inner(type.value)})`;
+        }
+        return kind;
     }
-    else if (kind === 'list') {
-        return `(list ${stringifyType(type.value)})`;
-    }
-    else if (kind === 'ref') {
-        return `(ref ${stringifyType(type.value)})`;
-    }
-    
-    // primitive
-    return kind;
+    return inner(type);
 }
 
 export function typeEqual(a: Type, b: Type): boolean {
+    if (a === b) { return true; }
+
     const { kind } = a;
     if (kind !== b.kind) { return false; }
 

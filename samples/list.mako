@@ -4,4 +4,5 @@
     (for i 0 (.length l) [
         (print (.get l i))
     ])
+    (print (.pop l))
 ])

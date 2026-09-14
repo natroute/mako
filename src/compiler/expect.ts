@@ -45,7 +45,7 @@ export class Expect<T extends TypedMsExpr[]> {
         }
         catch (e) {
             if (e instanceof BuiltinError) {
-                throw new BuiltinError(`argument #${i}: ${e.message}`);
+                throw new BuiltinError(`argument #${i + 1}: ${e.message}`);
             }
         }
         return arg;
