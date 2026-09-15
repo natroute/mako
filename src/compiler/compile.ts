@@ -29,18 +29,6 @@ function isTypeCompound(type: Type): type is Type & { kind: 'struct' | 'variant'
     return type.kind === 'struct' || type.kind === 'variant';
 }
 
-function manglerFactory(prefix: string = ''): () => string {
-    let count = 0;
-    return () => {
-        const mangled = prefix + base62.encode(count);
-        count++;
-        return mangled;
-    };
-};
-
-const namespacedFactory = (namespace: string | undefined) => (name: string) =>
-    namespace === undefined ? name : `${namespace}:${name}`;
-
 function discard(...items: TypedMsExpr[]): MsExpr {
     if (items.length === 0) { return Text(''); }
 
@@ -59,6 +47,7 @@ export const defaultOptions = {
     globalPrefix: 'g%',
     cullIntrinsics: true,
     timeit: false,
+    debugNames: false,
 };
 
 export type CompileOptions = typeof defaultOptions;
@@ -86,6 +75,18 @@ export function compile(
 
     const usedIntrinsics = new Set<string>();
 
+    function manglerFactory(prefix: string = ''): (comment?: string) => string {
+        let count = 0;
+        return (comment) => {
+            let mangled = prefix + base62.encode(count);
+            if (options.debugNames && comment !== undefined) {
+                mangled += ':' + comment.replaceAll(' ', '_');
+            }
+            count++;
+            return mangled;
+        };
+    };
+
     function normalizeIntrinsics(expr: MsExpr): void {
         walk(expr, (expr) => {
             if (expr.type !== 'intrinsicCall') { return; }
@@ -112,8 +113,8 @@ export function compile(
         return depth;
     }
 
-    function newMacro(body: MsExpr): string {
-        const mangledName = newMangledMacroName();
+    function newMacro(body: MsExpr, comment?: string): string {
+        const mangledName = newMangledMacroName(comment);
         setMacro(mangledName, body);
         return mangledName;
     }
@@ -122,7 +123,27 @@ export function compile(
     let mainFunc: Func | undefined;
 
     function compileFile(path: string, imported: boolean): void {
-        let namespaced: (name: string) => string;
+        let namespace: string | undefined;
+
+        const namespaced = (name: string) =>
+            namespace === undefined ? name : `${namespace}.${name}`;
+
+        function mapNamespaceWrapper<T>(map: Map<string, T>) {
+            return {
+                get(name: string): T | undefined {
+                    return namespace === undefined
+                        ? map.get(name)
+                        : map.get(namespaced(name)) ?? map.get(name);
+                },
+                set(name: string, value: T) {
+                    map.set(namespaced(name), value);
+                },
+            };
+        }
+
+        const wrappedTypeAliases = mapNamespaceWrapper(typeAliases);
+        const wrappedFuncs = mapNamespaceWrapper(funcs);
+        const wrappedGlobals = mapNamespaceWrapper(globals);
 
         function lowerType(typeNode: TypeNode): Type {
             const { kind } = typeNode;
@@ -132,7 +153,7 @@ export function compile(
                     return { kind: name };
                 }
 
-                const aliased = typeAliases.get(namespaced(name));
+                const aliased = wrappedTypeAliases.get(name);
                 if (aliased === undefined) {
                     error(typeNode, 'unknown type');
                 }
@@ -165,7 +186,9 @@ export function compile(
 
             const newMangledLocalName = manglerFactory();
 
-            // TODO: Remove culprit arg when we have a Name node in the AST
+            const comment = (content: string): string => `${func.sourceName}:${content}`;
+
+            // TODO: Remove culprit arg when we have a name node in the AST
             function resolveVar(name: string, culprit: Expr): ResolvedVar;
             function resolveVar(name: string): ResolvedVar | undefined;
             function resolveVar(name: string, culprit?: Expr): ResolvedVar | undefined {
@@ -174,7 +197,7 @@ export function compile(
                     return { scope: 'local', var: local };
                 }
 
-                const global = globals.get(namespaced(name));
+                const global = wrappedGlobals.get(namespaced(name));
                 if (global !== undefined) {
                     return { scope: 'global', var: global };
                 }
@@ -221,7 +244,7 @@ export function compile(
             }
 
             function compileLet(varName: string, compiledValue: TypedMsExpr): MsExpr {
-                const mangledName = newMangledLocalName();
+                const mangledName = newMangledLocalName(varName);
                 locals.set(varName, { mangledName, type: compiledValue.type });
                 return IntrinsicCall('store', mangledName, compiledValue.value);
             }
@@ -258,7 +281,7 @@ export function compile(
                 }
                 else if (type === 'declare') {
                     const type = lowerType(expr.varType);
-                    const mangledName = newMangledLocalName();
+                    const mangledName = newMangledLocalName(expr.varName);
                     locals.set(expr.varName, { mangledName, type });
                     return { value: Text(''), type: { kind: 'void' } };
                 }
@@ -301,7 +324,11 @@ export function compile(
                         let compiledArg0: TypedMsExpr | undefined;
                         let builtinBase: BuiltinBase;
                         let args: Expr[];
-                        if ('generic' in builtin) {
+                        const isGeneric = 'generic' in builtin;
+                        if (isGeneric) {
+                            if (expr.args.length === 0) {
+                                error(expr, `incorrect number of arguments for builtin ${expr.funcName} (expected at least 1, got 0)`);
+                            }
                             compiledArg0 = compileExpr(expr.args[0]);
                             builtinBase = builtin.instantiate(compiledArg0.type);
                             args = expr.args.slice(1);
@@ -318,8 +345,9 @@ export function compile(
                         ) {
                             error(
                                 expr,
-                                `incorrect number of arguments for builtin ${expr.funcName} ` +
-                                `(expected ${paramTypes.minCount} to ${paramTypes.maxCount}, got ${args.length})`);
+                                `incorrect number of arguments ${isGeneric ? '(after argument #1) ' : ''}for builtin ${expr.funcName} ` +
+                                `(expected ${paramTypes.minCount} to ${paramTypes.maxCount}, got ${args.length})`,
+                            );
                         }
 
                         const compiledArgs: TypedMsExpr[] = [];
@@ -343,7 +371,7 @@ export function compile(
                         }
                     }
 
-                    const func = funcs.get(namespaced(expr.funcName));
+                    const func = wrappedFuncs.get(expr.funcName);
                     if (func === undefined) {
                         error(expr, `function ${expr.funcName} is not defined`);
                     }
@@ -388,7 +416,7 @@ export function compile(
                             );
                         }
 
-                        return newMacro(compiledBody.value);
+                        return newMacro(compiledBody.value, comment('if_body'));
                     };
 
                     for (const { cond, body } of expr.clauses) {
@@ -410,10 +438,10 @@ export function compile(
                         error(expr.cond, `condition must be a boolean (got ${st(compiledCond.type)} instead)`);
                     }
 
-                    const condMacroName = newMacro(compiledCond.value);
+                    const condMacroName = newMacro(compiledCond.value, comment('while_cond'));
 
                     const compiledBody = compileExpr(expr.body);
-                    const bodyMacroName = newMangledMacroName();
+                    const bodyMacroName = newMangledMacroName(comment('while_body'));
                     setMacro(bodyMacroName, Concat(
                         discard(compiledBody),
                         Call(Call('if', Call(condMacroName), bodyMacroName, '')),
@@ -450,8 +478,8 @@ export function compile(
                         return compiledBody.value;
                     };
 
-                    const targetVarName = newMangledLocalName();
-                    const tagVarName = newMangledLocalName();
+                    const targetVarName = newMangledLocalName('match_target');
+                    const tagVarName = newMangledLocalName('match_tag');
 
                     let defaultBody: Expr | undefined;
                     const casesToCover = new Set(targetType.cases.keys());
@@ -471,31 +499,37 @@ export function compile(
 
                         casesToCover.delete(pattern.case);
 
-                        if (locals.has(pattern.varName)) {
-                            error(expr, `variable ${pattern.varName} has already been declared in this scope`);
+                        let mangledLocalName: string | undefined;
+                        if (pattern.varName !== undefined) {
+                            if (locals.has(pattern.varName)) {
+                                error(expr, `variable ${pattern.varName} has already been declared in this scope`);
+                            }
+                            mangledLocalName = newMangledLocalName(pattern.varName);
+                            locals.set(pattern.varName, {
+                                mangledName: mangledLocalName,
+                                type: case_.type,
+                            });
                         }
-                        const mangledLocalName = newMangledLocalName();
-                        locals.set(pattern.varName, {
-                            mangledName: mangledLocalName,
-                            type: case_.type,
-                        });
+
                         args.push(
                             Call('equal', IntrinsicCall('load', tagVarName), case_.index.toString()),
                             newMacro(Concat(
-                                IntrinsicCall('store',
-                                    mangledLocalName,
-                                    compoundGet({
-                                        value: IntrinsicCall('load', targetVarName),
-                                        type: targetType
-                                    }, '1'),
-                                ),
+                                pattern.varName === undefined
+                                    ? ''
+                                    : IntrinsicCall('store',
+                                        mangledLocalName!,
+                                        compoundGet({
+                                            value: IntrinsicCall('load', targetVarName),
+                                            type: targetType
+                                        }, '1'),
+                                    ),
                                 compileBody(body),
-                            )),
+                            ), comment(`match_arm:${pattern.case}`)),
                         );
                     }
                     if (defaultBody !== undefined) {
                         casesToCover.clear();
-                        args.push(newMacro(compileBody(defaultBody)));
+                        args.push(newMacro(compileBody(defaultBody), comment('match_arm:default')));
                     }
 
                     if (casesToCover.size !== 0) {
@@ -521,7 +555,7 @@ export function compile(
                         error(expr, `variable ${expr.varName} has already been declared in this scope`);
                     }
 
-                    const mangledName = newMangledLocalName();
+                    const mangledName = newMangledLocalName(expr.varName);
                     locals.set(expr.varName, { mangledName, type: { kind: 'number'} });
 
                     const compiledStart = compileExpr(expr.start, { kind: 'number' });
@@ -537,12 +571,11 @@ export function compile(
                     const bodyMacroName = newMacro(Call('', Concat(
                         IntrinsicCall('store', mangledName, Param(1)),
                         compiledBody.value,
-                    )));
+                    )), comment('for_body'));
                     return {
-                        value: Call('unescape', Call('sequence',
-                            '@',
+                        value: Call('unescape', IntrinsicCall('sequence',
                             compiledStart.value,
-                            Call('subtract', compiledEnd.value, '1'),
+                            compiledEnd.value,
                             Escaped(Call(bodyMacroName, '@')),
                         )),
                         type: { kind: 'void' },
@@ -677,8 +710,8 @@ export function compile(
                 }
                 else if (type === 'literal') {
                     return {
-                        value: Text(expr.value.toString()),
-                        type: { kind: typeof expr.value as any }
+                        value: Escaped(Text(expr.value.toString())),
+                        type: { kind: typeof expr.value as any },
                     };
                 }
                 throw new Error('logic error');
@@ -719,8 +752,6 @@ export function compile(
                 compileFile(resolvedPath, true);
             }
 
-            let namespace: string | undefined;
-
             for (const def of ast) {
                 if (def.type !== 'namespace') { continue; }
                 if (!imported) {
@@ -731,8 +762,6 @@ export function compile(
                 }
                 namespace = def.name;
             }
-
-            namespaced = namespacedFactory(namespace);
 
             for (const def of ast) {
                 if (def.type !== 'typeAlias') { continue; }
@@ -746,7 +775,7 @@ export function compile(
             for (const def of ast) {
                 if (def.type !== 'global') { continue; }
                 globals.set(namespaced(def.name), {
-                    mangledName: newMangledGlobalName(),
+                    mangledName: newMangledGlobalName(def.name),
                     type: lowerType(def.typeNode),
                 });
             }
@@ -764,8 +793,9 @@ export function compile(
                         error(def.returnType, 'the main function\'s return type must be void');
                     }
                 }
-                const func = {
-                    mangledName: newMangledMacroName(),
+                const func: Func = {
+                    sourceName: def.name,
+                    mangledName: newMangledMacroName(def.name),
                     params: def.params.map(({ name, type }) => ({ name, type: lowerType(type) })),
                     returnType,
                 };

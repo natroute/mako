@@ -1,8 +1,7 @@
 (fn main () void [
     (let l (list "meow" "mraow"))
-    (.push l ":3")
-    (for i 0 (.length l) [
-        (print (.get l i))
+    (list.push l ":3")
+    (for i 0 (list.length l) [
+        (print (list.get l i))
     ])
-    (print (.pop l))
 ])

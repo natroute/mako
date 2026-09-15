@@ -48,4 +48,4 @@ export type ExprNoRange =
 
 export type Expr = ExprNoRange & { range: Range };
 
-export type MatchArm = { pattern?: { case: string, varName: string }, body: Expr };
+export type MatchArm = { pattern?: { case: string, varName?: string }, body: Expr };

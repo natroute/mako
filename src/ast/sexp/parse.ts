@@ -113,6 +113,8 @@ export function parse(source: string): Sexp[] {
                     case 'u':
                         value += String.fromCharCode(Number.parseInt(readChars(4), 16));
                         break;
+                    default:
+                        error('invaid escape sequence');
                 }
                 skipRaw();
                 continue;

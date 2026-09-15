@@ -1,5 +1,6 @@
 (namespace json)
 
+# TODO: booleans
 (type Value (variant
     Number number
     String string
@@ -12,143 +13,195 @@
     value Value
 ))
 
-(global text string)
-(global i number)
+(global ~text string)
+(global ~i number)
 
-(fn current () string (string:slice text i (+ i 1)))
-
-(fn next () string [
-    (first
-        (string:slice text i (+ i 1))
-        (set i (+ i 1))
-    )
+(fn ~error (message string) void [
+    (error (.. "while parsing json: at position " (to_string ~i) ": " message))
 ])
 
-(fn skip_whitespace () void [
-    (while (== (current) " ") (next))
+(fn ~current () string [
+    (string.slice ~text ~i (+ ~i 1))
 ])
 
-(fn expect (expected string) void [
-    (let char (next))
-    (if (!= char expected) [
-        (error (.. (to_string i) ": expected " expected ", got " char))
+(fn ~skip () void [
+    (set ~i (+ ~i 1))
+])
+
+(fn ~skip_whitespace () void [
+    (while [
+        (== (string.replace (~current) "^\\s$" "xx") "xx")
+    ] [
+        (~skip)
     ])
 ])
 
-(fn is_char_num (char string) boolean [
+(fn ~expect (expected string) void [
+    (let char (~current))
+    (if (!= char expected) [
+        (~error (.. "expected '" expected "', got '" char "'"))
+    ])
+    (~skip)
+])
+
+(fn ~check_eof () void [
+    (if (== (~current) "") (~error "unexpected EOF"))
+])
+
+(fn ~is_char_num (char string) boolean [
     (if (== char "") false [
-        (let ord (string:ord char))
+        (let ord (string.ord char))
         (and (>= ord 48) (<= ord 57))
     ])
 ])
 
-(fn parse_impl () Value [
-    (skip_whitespace)
-    (let char (next))
+(fn parse (text string) Value [
+    (set ~text (string.sreplace text "[" "\ue000" "]" "\ue001"))
+    (set ~i 0)
+    (~skip_whitespace)
+    (~parse_impl)
+])
+
+(fn ~parse_impl () Value [
+    (let char (~current))
+    (~check_eof)
     (if
-        (is_char_num char) (parse_number char)
-        (== char "\"") (| String (parse_string))
-        (== char "(") (parse_array)
-        (== char "{") (parse_object)
-        (cast (error "invalid character") Value)
+        (~is_char_num char) (~parse_number)
+        (== char "\"") (| String (~parse_string))
+        (== char "\ue000") (~parse_array)
+        (== char "{") (~parse_object)
+        (cast (~error (.. "invalid character '" char "'")) Value)
     )
 ])
 
-(fn parse_number (first_char string) Value [
-    (let str first_char)
+(fn ~parse_number () Value [
+    (let str "")
     (while [
-        (let char (next))
-        (is_char_num char)
+        (let char (~current))
+        (~is_char_num char)
     ] [
         (set str (.. str char))
+        (~skip)
     ])
-    (next)
     (| Number (cast str number))
 ])
 
-(fn parse_string () string [
+(fn ~parse_string () string [
     (let str "")
-    (while (!= [(let char (next)) char] "\"") [
-        (set str (.. str char))
+
+    (~skip)
+    (while [
+        (let char (first (~current) (~check_eof)))
+        (!= char "\"")
+    ] [
+        (set str (.. str [
+            (if (== char "\\") [
+                (~skip)
+                (set char (~current))
+                (if
+                    (or (== char "\\") (== char "\"")) char
+                    (cast (~error "this escape sequence is not supported") string)
+                )
+            ] [
+                char
+            ])
+        ]))
+        (~skip)
     ])
-    (next)
+    (~skip)
+
     str
 ])
 
-(fn parse_array () Value [
+(fn ~parse_array () Value [
     (let list (list-of Value))
     (let expect_comma false)
 
-    (skip_whitespace)
-    (while (!= (current) ")") [
+    (~skip)
+    (while (!= (first (~current) (~check_eof)) "\ue001") [
         (if expect_comma [
-            (expect ",")
-            (skip_whitespace)
+            (~skip_whitespace)
+            (~expect ",")
         ])
         (set expect_comma true)
-        (list:push list (parse_impl))
-        (skip_whitespace)
+        (~skip_whitespace)
+        (list.push list (~parse_impl))
+        (~skip_whitespace)
     ])
-    (next)
+    (~skip)
 
     (| Array list)
 ])
 
-(fn parse_object () Value [
+(fn ~parse_object () Value [
     (let map (list-of MapEntry))
     (let expect_comma false)
 
-    (skip_whitespace)
-    (while (!= (next) "}") [
+    (~skip)
+    (while (!= (first (~current) (~check_eof)) "}") [
         (if expect_comma [
-            (expect ",")
-            (skip_whitespace)
+            (~skip_whitespace)
+            (~expect ",")
         ])
         (set expect_comma true)
-        (list:push map (&
+        (~skip_whitespace)
+        (list.push map (&
             :key (first
-                (parse_string) 
-                (skip_whitespace)
-                (expect ":")
+                (~parse_string)
+                (~skip_whitespace)
+                (~expect ":")
+                (~skip_whitespace)
             )
-            :value (parse_impl)
+            :value (~parse_impl)
         ))
-        (skip_whitespace)
+        (~skip_whitespace)
     ])
+    (~skip)
 
     (| Object map)
 ])
 
-(fn parse (text_ string) Value [
-    (set text (string:sreplace text_ "\\[" "(" "\\]" ")"))
-    (set i 0)
-    (parse_impl)
-])
-
-(fn stringify (json Value) string [
-    (match json
-        (Number number) (to_string number)
-        (String string) (.. "\"" string "\"")
-        (Array list) (stringify_array list)
-        (Object map) (stringify_object map)
+(fn free (value Value) void [
+    (match value
+        (Array list) [
+            (for i_l 0 (list.length list) [
+                (free (list.get list i_l))
+            ])
+            (list.free list)
+        ]
+        (Object map) [
+            (for i_m 0 (list.length map) [
+                (free (. (list.get map i_m) value))
+            ])
+        ]
+        () []
     )
 ])
 
-(fn stringify_array (list (list Value)) string [
-    (let result "\\[")
-    (for i 0 (list:length list) [
-        (set result (.. result
-            (if (== i 0) "" ", ")
-            (stringify (list:get list i))
-        ))
-    ])
-    (.. result "\\]")
+(fn stringify (value Value) string [
+    (match value
+        (Number num) (to_string num)
+        (String str) (.. "\"" str "\"")
+        (Array list) (~stringify_array list)
+        (Object map) (~stringify_object map)
+    )
 ])
 
-(fn stringify_object (map (list MapEntry)) string [
+(fn ~stringify_array (list (list Value)) string [
+    (let result "[")
+    (for i 0 (list.length list) [
+        (set result (.. result
+            (if (== i 0) "" ", ")
+            (stringify (list.get list i))
+        ))
+    ])
+    (.. result "]")
+])
+
+(fn ~stringify_object (map (list MapEntry)) string [
     (let result "{")
-    (for i 0 (list:length map) [
-        (let entry (list:get map i))
+    (for i 0 (list.length map) [
+        (let entry (list.get map i))
         (set result (.. result
             (if (== i 0) "" ", ")
             "\"" (. entry key) "\": " (stringify (. entry value))

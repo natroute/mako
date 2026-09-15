@@ -39,6 +39,7 @@ export type TypedMsExpr = { value: MsExpr, type: Type };
 export type MsExprLike = MsExpr | string;
 
 export type Func = {
+    sourceName: string;
     mangledName: string;
     params: { name: string, type: Type }[];
     returnType: Type;

@@ -160,10 +160,16 @@ function parseExpr(sexp: Sexp): Expr {
             const [[_, target], armsSexp] = asListWith(sexp, [nop, parseExpr], s => s);
 
             const arms = pairs(armsSexp, false).map(([patternSexp, bodySexp]) => {
-                let pattern: { case: string, varName: string } | undefined;
-                if (patternSexp.type !== 'list' || patternSexp.value.length !== 0) {
-                    const [case_, varName] = asListWith(patternSexp, [asAtom, asAtom]);
-                    pattern = { case: case_, varName };
+                let pattern: { case: string, varName?: string } | undefined;
+                if (!(patternSexp.type === 'list' && patternSexp.value.length === 0)) {
+                    if (patternSexp.type === 'list' && patternSexp.value.length === 1) {
+                        const [case_] = asListWith(patternSexp, [asAtom]);
+                        pattern = { case: case_ };
+                    }
+                    else {
+                        const [case_, varName] = asListWith(patternSexp, [asAtom, asAtom]);
+                        pattern = { case: case_, varName };
+                    }
                 }
                 return { pattern, body: parseExpr(bodySexp) };
             });

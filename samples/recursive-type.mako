@@ -4,7 +4,7 @@
 
 (fn main () void [
     # Creating an A is simple enough.
-    (let a (list* A))
+    (let a (list-of A))
     (.push a a)
 
     # But good luck creating a B...

@@ -4,7 +4,7 @@
 ))
 
 (fn vector_add (a Vector b Vector) Vector
-    (& :x (+ a.x b.x) :y (+ a.y b.y))
+    (& :x (+ (. a x) (. b x)) :y (+ (. a y) (. b y)))
 )
 
 (fn main () void [

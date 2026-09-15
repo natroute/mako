@@ -48,11 +48,27 @@ const _intrinsics: { [name: string]: MsExpr } = {
         Call('store', ALLOC_COUNT, Call('add', Call('load', ALLOC_COUNT), '1')),
     ),
 
+    sequence: Call(
+        Call('if',
+            Call('equal', Param(1), Param(2)),
+            '', 'sequence',
+        ),
+        '@',
+        Param(1),
+        Call('subtract', Param(2), '1'),
+        Param(3),
+    ),
+
     list_init: Concat(
         Call('unescape', Call('ureplace',
             Param(3),
             Escaped('\uffff(.*?)\uffff([^\uffff]*)'),
-            Escaped(Escaped(Call('store', Concat(Param(1), Deescaped('.\\1')), Deescaped('\\2')))),
+            Escaped(Escaped(
+                Call('store',
+                    Concat(Param(1), Deescaped('.\\1')),
+                    Deescaped('\\2')
+                ),
+            )),
         )),
         Call('store', Param(1), Param(2)),
         Param(1),
@@ -77,6 +93,7 @@ const _intrinsics: { [name: string]: MsExpr } = {
         Call('drop', Concat(Param(1), '.', Call('load', Param(1)))),
     ),
 
+    // When list length is 0, this will iterate *down* to index -1; this is fine since [drop] does nothing for missing variables
     list_free: Concat(
         Call('unescape', Call('sequence', '@',
             '0',

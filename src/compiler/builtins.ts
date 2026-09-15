@@ -136,7 +136,7 @@ builtins.set('print', {
     }),
 });
 
-builtins.set('string:slice', {
+builtins.set('string.slice', {
     paramTypes: {
         minCount: 1,
         maxCount: 4,
@@ -153,7 +153,7 @@ builtins.set('string:slice', {
     }),
 });
 
-builtins.set('string:length', {
+builtins.set('string.length', {
     paramTypes: makeParams([{ kind: 'string' }]),
     call: (str) => ({
         value: Call('len', str.value),
@@ -161,7 +161,7 @@ builtins.set('string:length', {
     }),
 })
 
-builtins.set('string:ord', {
+builtins.set('string.ord', {
     paramTypes: makeParams([{ kind: 'string' }]),
     call: (str) => ({
         value: Call('ord', str.value),
@@ -169,7 +169,7 @@ builtins.set('string:ord', {
     }),
 })
 
-builtins.set('string:chr', {
+builtins.set('string.chr', {
     paramTypes: makeParams([{ kind: 'number' }]),
     call: (codepoint) => ({
         value: Call('chr', codepoint.value),
@@ -190,8 +190,8 @@ const replaceFactory = (msFunc: string): Builtin => ({
     },
 });
 
-builtins.set('string:sreplace', replaceFactory('sreplace'));
-builtins.set('string:replace', replaceFactory('ureplace'));
+builtins.set('string.sreplace', replaceFactory('sreplace'));
+builtins.set('string.replace', replaceFactory('ureplace'));
 
 const makeListBuiltin = (builtin: (type: Type & { kind: 'list' }) => BuiltinBase): Builtin => ({
     generic: true,
@@ -203,7 +203,7 @@ const makeListBuiltin = (builtin: (type: Type & { kind: 'list' }) => BuiltinBase
     },
 });
 
-builtins.set('list:push', makeListBuiltin((type) => ({
+builtins.set('list.push', makeListBuiltin((type) => ({
     paramTypes: makeParams([type.value]),
     call: (list, item) => ({
         value: IntrinsicCall('list_push', list.value, item.value),
@@ -211,7 +211,7 @@ builtins.set('list:push', makeListBuiltin((type) => ({
     }),
 })));
 
-builtins.set('list:length', makeListBuiltin(() => ({
+builtins.set('list.length', makeListBuiltin(() => ({
     paramTypes: makeParams([]),
     call: (list) => ({
         value: Call('load', list.value),
@@ -219,7 +219,7 @@ builtins.set('list:length', makeListBuiltin(() => ({
     }),
 })));
 
-builtins.set('list:get', makeListBuiltin((type) => ({
+builtins.set('list.get', makeListBuiltin((type) => ({
     paramTypes: makeParams([{ kind: 'number' }]),
     call: (list, index) => ({
         value: Call('load', Concat(list.value, '.', index.value)),
@@ -227,7 +227,7 @@ builtins.set('list:get', makeListBuiltin((type) => ({
     }),
 })));
 
-builtins.set('list:free', makeListBuiltin(() => ({
+builtins.set('list.free', makeListBuiltin(() => ({
     paramTypes: makeParams([]),
     call: (list) => ({
         value: IntrinsicCall('list_free', list.value),

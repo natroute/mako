@@ -6,7 +6,7 @@ function stringify(expr: MsExpr, escapeLevel: number = 0): string {
     const esc = '\\'.repeat(2 ** escapeLevel - 1);
     const { type } = expr;
     if (type === 'text') {
-        return expr.value.replace(/[\[\]\\]/g, esc + '$&').replace('\n', '[chr/10]');
+        return expr.value.replace(/[\[\]\\]/g, esc + '$&').replaceAll('\t', '[chr/9]').replaceAll('\n', '[chr/10]');
     }
     if (type === 'call') {
         return esc + '[' + [expr.target, ...expr.args].map(item => stringify(item, escapeLevel)).join(esc + '/') + esc + ']';
@@ -28,7 +28,8 @@ function stringify(expr: MsExpr, escapeLevel: number = 0): string {
 export function dump({ macros, main }: CompileResult): string {
     let result = '';
     for (const [name, value] of macros.entries()) {
-        result += `#define ${name} ${stringify(value)}\n`;
+        const stringified = stringify(value);
+        result += `#define ${name} ${stringified}${stringified.endsWith(' ') ? '[]' : ''}\n`;
     }
     if (main !== undefined) {
         result += stringify(main);

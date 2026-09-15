@@ -10,11 +10,11 @@ const parseResult = parseArgs({
     options: Object.fromEntries(
         Object.entries(defaultOptions)
             .map(([name, default_]) => [
-                name.replace(/[a-z][A-Z]/g, m => m[0] + '-' + m[1].toLowerCase()),
-                { type: typeof default_ as 'string' | 'boolean' }
+                name,
+                { type: typeof default_ as 'string' | 'boolean' },
             ]),
     ),
 });
 const options = parseResult.values as CompileOptions;
 
-console.log(dump(compile(parseResult.positionals[0])));
+console.log(dump(compile(parseResult.positionals[0], options)));
